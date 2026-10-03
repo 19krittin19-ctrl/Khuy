@@ -1,0 +1,178 @@
+--[[
+    BlockSpin ULTIMATE FINAL
+    รวมทุกฟีเจอร์:
+    X = หมุนบล็อก (ล็อกหัวแบบไม่หัน)
+    C = ดำดิน/กลับหัว
+    V = ESP มองเห็นของคนอื่น
+    B = ยิงทะลุกำแพง
+]]
+
+-- ===== การตั้งค่า =====
+local spinSpeed = 10
+local radius = 5
+local toggleKey = Enum.KeyCode.X
+local noclipKey = Enum.KeyCode.C
+local espKey = Enum.KeyCode.V
+local wallbangKey = Enum.KeyCode.B
+
+-- ===== ตัวแปรหลัก =====
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+local spinning = false
+local spinPart = nil
+local noclipEnabled = false
+local espEnabled = false
+local wallbangEnabled = false
+
+-- ===== ฟังก์ชันสร้างบล็อก =====
+local function createSpinPart()
+    local part = Instance.new("Part")
+    part.Size = Vector3.new(2, 2, 2)
+    part.BrickColor = BrickColor.new("Really red")
+    part.Material = Enum.Material.Neon
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 0.3
+    part.Parent = workspace
+    return part
+end
+
+-- ===== ฟังก์ชันหมุนบล็อก (ล็อกหัวแบบไม่หัน) =====
+local function spinBlock()
+    if not spinPart then
+        spinPart = createSpinPart()
+    end
+    
+    local startTime = tick()
+    
+    while spinning do
+        local elapsed = tick() - startTime
+        local angle = math.rad(elapsed * spinSpeed)
+        
+        -- หมุนบล็อกรอบตัว แต่ไม่บังคับให้หัวหันตาม
+        local offset = Vector3.new(math.cos(angle) * radius, 2, math.sin(angle) * radius)
+        spinPart.CFrame = humanoidRootPart.CFrame * CFrame.new(offset)
+        
+        -- ทำให้บล็อกหมุนรอบตัวเอง
+        spinPart.CFrame = spinPart.CFrame * CFrame.Angles(0, math.rad(90) * spinSpeed * 0.1, 0)
+        
+        wait(0.016)
+    end
+    
+    if spinPart then
+        spinPart:Destroy()
+        spinPart = nil
+    end
+end
+
+-- ===== ฟังก์ชันดำดิน/กลับหัว =====
+local function toggleNoclip()
+    noclipEnabled = not noclipEnabled
+    
+    if noclipEnabled then
+        -- กลับหัว
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame * CFrame.Angles(math.pi, 0, 0)
+        
+        -- Noclip
+        for _, part in ipairs(character:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+        
+        -- ดำดิน
+        humanoidRootPart.Velocity = Vector3.new(0, -50, 0)
+        
+        spawn(function()
+            while noclipEnabled do
+                for _, part in ipairs(character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+                wait(0.1)
+            end
+        end)
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Noclip ON",
+            Text = "ดำดินแล้ว! กด C เพื่อกลับ",
+            Duration = 3
+        })
+    else
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame * CFrame.Angles(math.pi, 0, 0)
+        
+        for _, part in ipairs(character:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Noclip OFF",
+            Text = "กลับสู่ปกติแล้ว!",
+            Duration = 3
+        })
+    end
+end
+
+-- ===== ฟังก์ชัน ESP =====
+local function toggleESP()
+    espEnabled = not espEnabled
+    
+    if espEnabled then
+        -- ESP สำหรับผู้เล่นทั้งหมด
+        for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
+            if otherPlayer ~= player then
+                local otherChar = otherPlayer.Character
+                if otherChar then
+                    local highlight = Instance.new("Highlight")
+                    highlight.FillColor = Color3.new(1, 0, 0)
+                    highlight.OutlineColor = Color3.new(1, 1, 0)
+                    highlight.FillTransparency = 0.5
+                    highlight.Parent = otherChar
+                    
+                    -- ESP สำหรับไอเทมที่ถือ
+                    for _, item in ipairs(otherChar:GetChildren()) do
+                        if item:IsA("Tool") then
+                            local toolHighlight = Instance.new("Highlight")
+                            toolHighlight.FillColor = Color3.new(0, 1, 0)
+                            toolHighlight.OutlineColor = Color3.new(0, 1, 1)
+                            toolHighlight.FillTransparency = 0.3
+                            toolHighlight.Parent = item
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- ESP สำหรับไอเทมบนพื้น
+        for _, item in ipairs(workspace:GetChildren()) do
+            if item:IsA("Tool") or item:IsA("Part") then
+                if not item:FindFirstChildOfClass("Highlight") then
+                    local highlight = Instance.new("Highlight")
+                    highlight.FillColor = Color3.new(0, 0, 1)
+                    highlight.OutlineColor = Color3.new(1, 1, 1)
+                    highlight.FillTransparency = 0.2
+                    highlight.Parent = item
+                end
+            end
+        end
+        
+        -- ESP สำหรับผู้เล่นใหม่ที่เข้ามา
+        game.Players.PlayerAdded:Connect(function(newPlayer)
+            wait(2)
+            if espEnabled then
+                local newChar = newPlayer.Character or newPlayer.CharacterAdded:Wait()
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = Color3.new(1, 0, 0)
+                highlight.OutlineColor = Color3.new(1, 1, 0)
+                highlight.FillTransparency = 0.5
+                highlight.Parent = newChar
+            end
+        end)
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "ESP ON
